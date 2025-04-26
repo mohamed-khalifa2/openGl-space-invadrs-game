@@ -2,6 +2,7 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
+import random  # NEW: for random enemy shooting
 
 # Constants
 WIDTH, HEIGHT = 800, 600
@@ -21,7 +22,7 @@ current_difficulty = 'Normal'
 
 def load_texture(filename):
     surface = pygame.image.load(filename)
-    surface = pygame.transform.flip(surface, False, True)  # Flip vertically for OpenGL
+    surface = pygame.transform.flip(surface, False, True)
     image_data = pygame.image.tostring(surface, "RGBA", True)
     width, height = surface.get_size()
 
@@ -29,8 +30,7 @@ def load_texture(filename):
     glBindTexture(GL_TEXTURE_2D, texture_id)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, image_data)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data)
     return texture_id, width, height
 
 def draw_text(x, y, text_string, size=32, color=(255, 255, 255)):
@@ -81,6 +81,7 @@ def draw_textured_rect(x, y, w, h, texture_id):
     glTexCoord2f(0,0); glVertex2f(x, y+h)
     glEnd()
     glDisable(GL_TEXTURE_2D)
+
 # --- Classes ---
 
 class Player:
@@ -126,6 +127,20 @@ class Enemy:
     def draw(self):
         draw_textured_rect(self.x, self.y, self.w, self.h, self.texture_id)
 
+# NEW Class for Enemy Bullets
+class EnemyBullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.w = BULLET_WIDTH
+        self.h = BULLET_HEIGHT
+
+    def update(self):
+        self.y -= BULLET_SPEED  # Move downward
+
+    def draw(self):
+        draw_rect(self.x, self.y, self.w, self.h, (1, 0, 0))  # Red color for enemy bullets
+
 # --- Game Functions ---
 
 def main_game_loop():
@@ -139,6 +154,16 @@ def main_game_loop():
     bullets = []
     enemies = []
     enemy_direction = ENEMY_SPEED_X
+
+    enemy_bullets = []  # NEW: Enemy bullets list
+    if current_difficulty == 'Easy':
+        min_cooldown, max_cooldown = 60, 120
+    elif current_difficulty == 'Normal':
+        min_cooldown, max_cooldown = 30, 90
+    elif current_difficulty == 'Hard':
+        min_cooldown, max_cooldown = 15, 45
+
+    enemy_shoot_cooldown = random.randint(min_cooldown, max_cooldown)
 
     for row in range(4):
         for col in range(7):
@@ -167,8 +192,12 @@ def main_game_loop():
         if not game_over:
             for b in bullets:
                 b.update()
-
             bullets = [b for b in bullets if b.y < HEIGHT]
+
+            # Update enemy bullets
+            for eb in enemy_bullets:
+                eb.update()
+            enemy_bullets = [eb for eb in enemy_bullets if eb.y > 0]
 
             move_down = False
             for e in enemies:
@@ -181,6 +210,14 @@ def main_game_loop():
                 for e in enemies:
                     e.move(enemy_direction, -ENEMY_SPEED_Y)
 
+            # Enemy shooting logic
+            enemy_shoot_cooldown -= 1
+            if enemy_shoot_cooldown <= 0 and enemies:
+                shooter = random.choice(enemies)
+                enemy_bullets.append(EnemyBullet(shooter.x + shooter.w/2 - BULLET_WIDTH/2, shooter.y))
+                enemy_shoot_cooldown = random.randint(min_cooldown, max_cooldown)
+
+            # Bullet and enemy collision
             for bullet in bullets[:]:
                 for enemy in enemies[:]:
                     if (bullet.x < enemy.x+enemy.w and bullet.x+bullet.w > enemy.x and
@@ -192,6 +229,14 @@ def main_game_loop():
                             pass
                         break
 
+            # Enemy bullet hitting player
+            for eb in enemy_bullets:
+                if (eb.x < player.x + player.w and eb.x + eb.w > player.x and
+                    eb.y < player.y + player.h and eb.y + eb.h > player.y):
+                    game_over = True
+                    break
+
+            # Enemy reaching player
             for e in enemies:
                 if e.y <= player.y+player.h:
                     game_over = True
@@ -208,6 +253,8 @@ def main_game_loop():
             b.draw()
         for e in enemies:
             e.draw()
+        for eb in enemy_bullets:
+            eb.draw()
 
         if game_over:
             if win:
