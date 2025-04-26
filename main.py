@@ -135,7 +135,7 @@ class EnemyBullet:
         self.h = BULLET_HEIGHT
 
     def update(self):
-        self.y -= BULLET_SPEED  # Move downward
+        self.y -= BULLET_SPEED 
 
     def draw(self):
         draw_rect(self.x, self.y, self.w, self.h, (1, 0, 0))  # Red color for enemy bullets
@@ -154,7 +154,7 @@ def main_game_loop():
     enemies = []
     enemy_direction = ENEMY_SPEED_X
 
-    enemy_bullets = []  # NEW: Enemy bullets list
+    enemy_bullets = []  
     if current_difficulty == 'Easy':
         min_cooldown, max_cooldown = 60, 120
     elif current_difficulty == 'Normal':
@@ -179,6 +179,8 @@ def main_game_loop():
                 pygame.quit()
                 exit()
 
+        ## EDIT HERE ########
+        #####################
         keys = pygame.key.get_pressed()
         if keys[K_LEFT]:
             player.move(-PLAYER_SPEED)
@@ -187,6 +189,9 @@ def main_game_loop():
         if keys[K_SPACE]:
             if len(bullets) < 5:
                 bullets.append(Bullet(player.x + player.w/2 - BULLET_WIDTH/2, player.y + player.h))
+
+        ######################
+        ######################
 
         if not game_over:
             for b in bullets:
