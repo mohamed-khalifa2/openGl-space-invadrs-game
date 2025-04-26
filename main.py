@@ -2,7 +2,7 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
-import random  # NEW: for random enemy shooting
+import random  
 
 # Constants
 WIDTH, HEIGHT = 800, 600
@@ -19,7 +19,6 @@ FPS = 60
 current_difficulty = 'Normal'
 
 # --- Helpers ---
-
 def load_texture(filename):
     surface = pygame.image.load(filename)
     surface = pygame.transform.flip(surface, False, True)
@@ -258,9 +257,16 @@ def main_game_loop():
 
         if game_over:
             if win:
-                draw_text(WIDTH/2-100, HEIGHT/2, "YOU WIN!", size=48)
+                draw_text(WIDTH/2-100, HEIGHT/2+40, "YOU WIN!", size=48)
             else:
-                draw_text(WIDTH/2-100, HEIGHT/2, "GAME OVER", size=48)
+                draw_text(WIDTH/2-100, HEIGHT/2+40, "GAME OVER", size=48)
+
+            draw_text(WIDTH/2-160, HEIGHT/2-20, "Press SPACE to Play Again", size=24)
+
+            keys = pygame.key.get_pressed()
+            if keys[K_SPACE]:
+                main_game_loop()  # Restart the game
+                return
 
         pygame.display.flip()
 
