@@ -2,6 +2,7 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
+from OpenGL.GLUT import *
 import random  
 
 # Constants
@@ -9,6 +10,8 @@ WIDTH, HEIGHT = 800, 600
 PLAYER_WIDTH, PLAYER_HEIGHT = 50, 30
 BULLET_WIDTH, BULLET_HEIGHT = 5, 10
 ENEMY_WIDTH, ENEMY_HEIGHT = 40, 30
+
+
 
 PLAYER_SPEED = 6
 BULLET_SPEED = 7
@@ -33,7 +36,7 @@ def load_texture(filename):
     return texture_id, width, height
 
 def draw_text(x, y, text_string, size=32, color=(255, 255, 255)):
-    font = pygame.font.SysFont("Arial", size)
+    font = pygame.font.SysFont("PixelifySans-Medium", size)
     text_surface = font.render(text_string, True, color)
     text_data = pygame.image.tostring(text_surface, "RGBA", True)
     text_width, text_height = text_surface.get_size()
@@ -85,7 +88,7 @@ def draw_textured_rect(x, y, w, h, texture_id):
 
 class Player:
     def __init__(self, texture_id):
-        self.x = WIDTH//2 - PLAYER_WIDTH//2
+        self.x = WIDTH//2 - PLAYER_WIDTH//2 #X coords 
         self.y = 50
         self.w = PLAYER_WIDTH
         self.h = PLAYER_HEIGHT
@@ -259,14 +262,15 @@ def main_game_loop():
             e.draw()
         for eb in enemy_bullets:
             eb.draw()
-
+        red = (255,0,0)
+        green = (0,255,0)
         if game_over:
             if win:
-                draw_text(WIDTH/2-100, HEIGHT/2+40, "YOU WIN!", size=48)
+                draw_text(WIDTH/2-100, HEIGHT/2+40, "YOU WIN!", size=48,color = green)
             else:
-                draw_text(WIDTH/2-100, HEIGHT/2+40, "GAME OVER", size=48)
+                draw_text(WIDTH/2-100, HEIGHT/2+40, "GAME OVER", size=48,color = red)
 
-            draw_text(WIDTH/2-160, HEIGHT/2-20, "Press SPACE to Play Again", size=24)
+            draw_text(WIDTH/2-105, HEIGHT/2-20, "Press SPACE to Play Again", size=24)
 
             keys = pygame.key.get_pressed()
             if keys[K_SPACE]:
@@ -314,9 +318,9 @@ def menu_screen():
 
         color1 = (255,255,0) if selected==0 else (255,255,255)
         color2 = (255,255,0) if selected==1 else (255,255,255)
-        draw_text(WIDTH/2-70, HEIGHT/2+30, "Start Game", size=32, color=color1)
-        draw_text(WIDTH/2-90, HEIGHT/2-10, "Set Difficulty", size=32, color=color2)
-        draw_text(WIDTH/2-90, HEIGHT/2-50, f"Current: {current_difficulty}", size=24)
+        draw_text(WIDTH/2-50, HEIGHT/2+30, "Start Game", size=32, color=color1)
+        draw_text(WIDTH/2-60, HEIGHT/2-10, "Set Difficulty", size=32, color=color2)
+        draw_text(WIDTH/2-53, HEIGHT/2-50, f"Current: {current_difficulty}", size=24)
 
         pygame.display.flip()
 
@@ -340,6 +344,7 @@ def menu_screen():
 
 def main():
     pygame.init()
+    glutInit()
     pygame.display.set_mode((WIDTH, HEIGHT), DOUBLEBUF | OPENGL)
     pygame.display.set_caption("Space Invaders OpenGL")
     pygame.font.init()
