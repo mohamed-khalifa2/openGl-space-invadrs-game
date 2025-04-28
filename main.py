@@ -33,7 +33,7 @@ def load_texture(filename):
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data)
-    return texture_id, width, height
+    return texture_id
 
 def draw_text(x, y, text_string, size=32, color=(255, 255, 255)):
     font = pygame.font.SysFont("PixelifySans-Medium", size)
@@ -129,7 +129,6 @@ class Enemy:
     def draw(self):
         draw_textured_rect(self.x, self.y, self.w, self.h, self.texture_id)
 
-# NEW Class for Enemy Bullets
 class EnemyBullet:
     def __init__(self, x, y):
         self.x = x
@@ -149,8 +148,8 @@ def main_game_loop():
     global current_difficulty
     clock = pygame.time.Clock()
 
-    player_texture, _, _ = load_texture('assets/player.png')
-    enemy_texture, _, _ = load_texture('assets/enemy.png')
+    player_texture= load_texture('assets/player.png')
+    enemy_texture= load_texture('assets/enemy.png')
 
     player = Player(player_texture)
     bullets = []
@@ -182,19 +181,14 @@ def main_game_loop():
                 pygame.quit()
                 exit()
 
-        ## EDIT HERE ########
-        #####################
         keys = pygame.key.get_pressed()
         if keys[K_LEFT]:
             player.move(-PLAYER_SPEED)
         if keys[K_RIGHT]:
             player.move(PLAYER_SPEED)
         if keys[K_SPACE]:
-            if len(bullets) < 5:
+            if len(bullets)< 4:
                 bullets.append(Bullet(player.x + player.w/2 - BULLET_WIDTH/2, player.y + player.h))
-
-        ######################
-        ######################
 
         if not game_over:
             for b in bullets:
@@ -225,8 +219,8 @@ def main_game_loop():
                 enemy_shoot_cooldown = random.randint(min_cooldown, max_cooldown)
 
             # Bullet and enemy collision
-            for bullet in bullets[:]:
-                for enemy in enemies[:]:
+            for bullet in bullets:
+                for enemy in enemies:
                     if (bullet.x < enemy.x+enemy.w and bullet.x+bullet.w > enemy.x and
                         bullet.y < enemy.y+enemy.h and bullet.y+bullet.h > enemy.y):
                         try:
@@ -274,7 +268,7 @@ def main_game_loop():
 
             keys = pygame.key.get_pressed()
             if keys[K_SPACE]:
-                main_game_loop()  # Restart the game
+                main_game_loop() 
                 return
 
         pygame.display.flip()
@@ -289,9 +283,9 @@ def difficulty_screen():
         draw_background()
         draw_text(WIDTH/2-120, HEIGHT-100, "Select Difficulty", size=48)
 
-        for i, diff in enumerate(difficulties):
+        for i in range(len(difficulties)):
             color = (255,255,0) if selected == i else (255,255,255)
-            draw_text(WIDTH/2-50, HEIGHT/2-40*i, diff, size=32, color=color)
+            draw_text(WIDTH/2-50, HEIGHT/2-40*(i+1), difficulties[i], size=32, color=color)
 
         pygame.display.flip()
 
@@ -348,15 +342,12 @@ def main():
     pygame.display.set_mode((WIDTH, HEIGHT), DOUBLEBUF | OPENGL)
     pygame.display.set_caption("Space Invaders OpenGL")
     pygame.font.init()
-
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluOrtho2D(0, WIDTH, 0, HEIGHT)
     glMatrixMode(GL_MODELVIEW)
-
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-
     menu_screen()
 
 if __name__ == "__main__":
