@@ -3,25 +3,38 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
-import random  
+import random
+import sys
 
-# Constants
+# --- Constants ---
 WIDTH, HEIGHT = 800, 600
 PLAYER_WIDTH, PLAYER_HEIGHT = 50, 30
 BULLET_WIDTH, BULLET_HEIGHT = 5, 10
 ENEMY_WIDTH, ENEMY_HEIGHT = 40, 30
-
-
 
 PLAYER_SPEED = 6
 BULLET_SPEED = 7
 ENEMY_SPEED_X = 2
 ENEMY_SPEED_Y = 20
 
+
 FPS = 60
 current_difficulty = 'Normal'
+current_screen = 'menu'
 
-# --- Helpers ---
+# Game State
+player = None
+bullets = []
+enemies = []
+enemy_bullets = []
+enemy_direction = ENEMY_SPEED_X
+enemy_shoot_cooldown = 60
+game_over = False
+win = False
+keys_held = {}
+
+# --- Helper Functions ---
+
 def load_texture(filename):
     surface = pygame.image.load(filename)
     surface = pygame.transform.flip(surface, False, True)
@@ -88,7 +101,7 @@ def draw_textured_rect(x, y, w, h, texture_id):
 
 class Player:
     def __init__(self, texture_id):
-        self.x = WIDTH//2 - PLAYER_WIDTH//2 #X coords 
+        self.x = WIDTH//2 - PLAYER_WIDTH//2
         self.y = 50
         self.w = PLAYER_WIDTH
         self.h = PLAYER_HEIGHT
@@ -137,31 +150,28 @@ class EnemyBullet:
         self.h = BULLET_HEIGHT
 
     def update(self):
-        self.y -= BULLET_SPEED 
+        self.y -= BULLET_SPEED
 
     def draw(self):
-        draw_rect(self.x, self.y, self.w, self.h, (1, 0, 0))  # Red color for enemy bullets
+        draw_rect(self.x, self.y, self.w, self.h, (1, 0, 0))
 
 # --- Game Functions ---
 
-def main_game_loop():
-    global current_difficulty
-    clock = pygame.time.Clock()
-
-    player_texture= load_texture('assets/player.png')
-    enemy_texture= load_texture('assets/enemy.png')
-
+def init_game():
+    global player, bullets, enemies, enemy_bullets, enemy_direction, enemy_shoot_cooldown, game_over, win
+    player_texture = load_texture('assets/player.png')
+    enemy_texture = load_texture('assets/enemy.png')
     player = Player(player_texture)
-    bullets = []
-    enemies = []
+    bullets.clear()
+    enemies.clear()
+    enemy_bullets.clear()
     enemy_direction = ENEMY_SPEED_X
 
-    enemy_bullets = []  
     if current_difficulty == 'Easy':
         min_cooldown, max_cooldown = 60, 120
     elif current_difficulty == 'Normal':
         min_cooldown, max_cooldown = 30, 90
-    elif current_difficulty == 'Hard':
+    else:
         min_cooldown, max_cooldown = 15, 45
 
     enemy_shoot_cooldown = random.randint(min_cooldown, max_cooldown)
@@ -170,85 +180,84 @@ def main_game_loop():
         for col in range(7):
             enemies.append(Enemy(100 + col*80, HEIGHT-100 - row*60, enemy_texture))
 
-    running = True
     game_over = False
     win = False
 
-    while running:
-        clock.tick(FPS)
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.quit()
-                exit()
+def update(value):
+    global enemy_direction, enemy_shoot_cooldown, game_over, win
 
-        keys = pygame.key.get_pressed()
-        if keys[K_LEFT]:
+    if not game_over:
+        if keys_held.get(b'a') or keys_held.get(b'A') or keys_held.get(GLUT_KEY_LEFT):
             player.move(-PLAYER_SPEED)
-        if keys[K_RIGHT]:
+        if keys_held.get(b'd') or keys_held.get(b'D') or keys_held.get(GLUT_KEY_RIGHT):
             player.move(PLAYER_SPEED)
-        if keys[K_SPACE]:
-            if len(bullets)< 4:
-                bullets.append(Bullet(player.x + player.w/2 - BULLET_WIDTH/2, player.y + player.h))
 
-        if not game_over:
-            for b in bullets:
-                b.update()
-            bullets = [b for b in bullets if b.y < HEIGHT]
+        for b in bullets:
+            b.update()
+        for eb in enemy_bullets:
+            eb.update()
 
-            # Update enemy bullets
-            for eb in enemy_bullets:
-                eb.update()
-            enemy_bullets = [eb for eb in enemy_bullets if eb.y > 0]
+        bullets[:] = [b for b in bullets if b.y < HEIGHT]
+        enemy_bullets[:] = [eb for eb in enemy_bullets if eb.y > 0]
 
-            move_down = False
+        move_down = False
+        for e in enemies:
+            e.move(enemy_direction, 0)
+            if e.x <= 0 or e.x + e.w >= WIDTH:
+                move_down = True
+
+        if move_down:
+            enemy_direction *= -1
             for e in enemies:
-                e.move(enemy_direction, 0)
-                if e.x <= 0 or e.x+e.w >= WIDTH:
-                    move_down = True
+                e.move(enemy_direction, -ENEMY_SPEED_Y)
 
-            if move_down:
-                enemy_direction *= -1
-                for e in enemies:
-                    e.move(enemy_direction, -ENEMY_SPEED_Y)
+        enemy_shoot_cooldown -= 1
+        if enemy_shoot_cooldown <= 0 and enemies:
+            shooter = random.choice(enemies)
+            enemy_bullets.append(EnemyBullet(shooter.x + shooter.w/2 - BULLET_WIDTH/2, shooter.y))
+            reset_enemy_cooldown()
 
-            # Enemy shooting logic
-            enemy_shoot_cooldown -= 1
-            if enemy_shoot_cooldown <= 0 and enemies:
-                shooter = random.choice(enemies)
-                enemy_bullets.append(EnemyBullet(shooter.x + shooter.w/2 - BULLET_WIDTH/2, shooter.y))
-                enemy_shoot_cooldown = random.randint(min_cooldown, max_cooldown)
-
-            # Bullet and enemy collision
-            for bullet in bullets:
-                for enemy in enemies:
-                    if (bullet.x < enemy.x+enemy.w and bullet.x+bullet.w > enemy.x and
-                        bullet.y < enemy.y+enemy.h and bullet.y+bullet.h > enemy.y):
-                        try:
-                            bullets.remove(bullet)
-                            enemies.remove(enemy)
-                        except:
-                            pass
-                        break
-
-            # Enemy bullet hitting player
-            for eb in enemy_bullets:
-                if (eb.x < player.x + player.w and eb.x + eb.w > player.x and
-                    eb.y < player.y + player.h and eb.y + eb.h > player.y):
-                    game_over = True
+        # Check collisions
+        for bullet in bullets[:]:
+            for enemy in enemies[:]:
+                if (bullet.x < enemy.x+enemy.w and bullet.x+bullet.w > enemy.x and
+                    bullet.y < enemy.y+enemy.h and bullet.y+bullet.h > enemy.y):
+                    bullets.remove(bullet)
+                    enemies.remove(enemy)
                     break
 
-            # Enemy reaching player
-            for e in enemies:
-                if e.y <= player.y+player.h:
-                    game_over = True
-                    break
-
-            if not enemies:
-                win = True
+        for eb in enemy_bullets:
+            if (eb.x < player.x + player.w and eb.x + eb.w > player.x and
+                eb.y < player.y + player.h and eb.y + eb.h > player.y):
                 game_over = True
 
-        draw_background()
+        for e in enemies:
+            if e.y <= player.y + player.h:
+                game_over = True
 
+        if not enemies:
+            win = True
+            game_over = True
+
+    glutPostRedisplay()
+    glutTimerFunc(int(1000/FPS), update, 0)
+
+def reset_enemy_cooldown():
+    global enemy_shoot_cooldown
+    if current_difficulty == 'Easy':
+        enemy_shoot_cooldown = random.randint(60, 120)
+    elif current_difficulty == 'Normal':
+        enemy_shoot_cooldown = random.randint(30, 90)
+    else:
+        enemy_shoot_cooldown = random.randint(15, 45)
+
+def display():
+    draw_background()
+
+    if current_screen == 'menu':
+        draw_text(WIDTH/2-150, HEIGHT/2+40, "SPACE INVADERS", size=48)
+        draw_text(WIDTH/2-170, HEIGHT/2-20, "1-Easy2-Normal3-Hard", size=24)
+    elif current_screen == 'playing':
         player.draw()
         for b in bullets:
             b.draw()
@@ -256,99 +265,85 @@ def main_game_loop():
             e.draw()
         for eb in enemy_bullets:
             eb.draw()
-        red = (255,0,0)
-        green = (0,255,0)
-        if game_over:
-            if win:
-                draw_text(WIDTH/2-100, HEIGHT/2+40, "YOU WIN!", size=48,color = green)
-            else:
-                draw_text(WIDTH/2-100, HEIGHT/2+40, "GAME OVER", size=48,color = red)
 
+        if game_over:
+            color = (0,255,0) if win else (255,0,0)
+            draw_text(WIDTH/2-100, HEIGHT/2+40, "YOU WIN!" if win else "GAME OVER", size=48, color=color)
             draw_text(WIDTH/2-105, HEIGHT/2-20, "Press SPACE to Play Again", size=24)
 
-            keys = pygame.key.get_pressed()
-            if keys[K_SPACE]:
-                main_game_loop() 
-                return
+    glutSwapBuffers()
 
-        pygame.display.flip()
+def key_pressed(key, x, y):
+    global keys_held, current_difficulty, current_screen
 
-def difficulty_screen():
-    global current_difficulty
-    difficulties = ['Easy', 'Normal', 'Hard']
-    selected = 1
-    running = True
-    while running:
-        glClear(GL_COLOR_BUFFER_BIT)
-        draw_background()
-        draw_text(WIDTH/2-120, HEIGHT-100, "Select Difficulty", size=48)
+    if current_screen == 'menu':
+        if key == b'1':
+            current_difficulty = 'Easy'
+            current_screen = 'playing'
+            init_game()
+        elif key == b'2':
+            current_difficulty = 'Normal'
+            current_screen = 'playing'
+            init_game()
+        elif key == b'3':
+            current_difficulty = 'Hard'
+            current_screen = 'playing'
+            init_game()
+    elif current_screen == 'playing':
+        keys_held[key] = True
 
-        for i in range(len(difficulties)):
-            color = (255,255,0) if selected == i else (255,255,255)
-            draw_text(WIDTH/2-50, HEIGHT/2-40*(i+1), difficulties[i], size=32, color=color)
+        if key == b' ':
+            if game_over:
+                init_game()
+            else:
+                # Fire bullet from center of player
+                bullet_x = player.x + player.w // 2 - BULLET_WIDTH // 2
+                bullet_y = player.y + player.h
+                bullets.append(Bullet(bullet_x, bullet_y))
 
-        pygame.display.flip()
+    if key == b'\x1b':  # ESC key
+        sys.exit()
 
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.quit()
-                exit()
-            if event.type == KEYDOWN:
-                if event.key == K_UP:
-                    selected = (selected-1)%3
-                if event.key == K_DOWN:
-                    selected = (selected+1)%3
-                if event.key == K_RETURN:
-                    current_difficulty = difficulties[selected]
-                    running = False
+def key_released(key, x, y):
+    global keys_held
+    if key in keys_held:
+        del keys_held[key]
 
-def menu_screen():
-    selected = 0
-    running = True
-    while running:
-        glClear(GL_COLOR_BUFFER_BIT)
-        draw_background()
-        draw_text(WIDTH/2-120, HEIGHT-100, "SPACE INVADERS", size=48)
+def special_pressed(key, x, y):
+    keys_held[key] = True
 
-        color1 = (255,255,0) if selected==0 else (255,255,255)
-        color2 = (255,255,0) if selected==1 else (255,255,255)
-        draw_text(WIDTH/2-50, HEIGHT/2+30, "Start Game", size=32, color=color1)
-        draw_text(WIDTH/2-60, HEIGHT/2-10, "Set Difficulty", size=32, color=color2)
-        draw_text(WIDTH/2-53, HEIGHT/2-50, f"Current: {current_difficulty}", size=24)
-
-        pygame.display.flip()
-
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.quit()
-                exit()
-            if event.type == KEYDOWN:
-                if event.key == K_UP:
-                    selected = (selected-1)%2
-                if event.key == K_DOWN:
-                    selected = (selected+1)%2
-                if event.key == K_RETURN:
-                    if selected == 0:
-                        running = False
-                        main_game_loop()
-                    else:
-                        difficulty_screen()
+def special_released(key, x, y):
+    if key in keys_held:
+        del keys_held[key]
 
 # --- Main Program ---
 
 def main():
     pygame.init()
-    glutInit()
-    pygame.display.set_mode((WIDTH, HEIGHT), DOUBLEBUF | OPENGL)
-    pygame.display.set_caption("Space Invaders OpenGL")
+    pygame.display.set_mode((1,1), pygame.NOFRAME)
     pygame.font.init()
+    glutInit()
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
+    glutInitWindowSize(WIDTH, HEIGHT)
+    glutCreateWindow(b"Space Invaders OpenGL GLUT")
+
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluOrtho2D(0, WIDTH, 0, HEIGHT)
     glMatrixMode(GL_MODELVIEW)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    menu_screen()
+
+    init_game()
+
+    glutDisplayFunc(display)
+    glutKeyboardFunc(key_pressed)
+    glutKeyboardUpFunc(key_released)
+    glutSpecialFunc(special_pressed)
+    glutSpecialUpFunc(special_released)
+    glutTimerFunc(int(1000/FPS), update, 0)
+
+    glutMainLoop()
 
 if __name__ == "__main__":
     main()
